@@ -1,3 +1,11 @@
+# LVGL Settings Page Demo
+
+This is a demo for a settings page using LVGL.
+
+# Snapshot
+
+<img src="./res/snapshots/snapshot-01.png" width="480">
+
 # Eclipse Simulator for LVGL (using SDL)
 
 The [LVGL](https://github.com/lvgl/lvgl) is written mainly for microcontrollers and embedded systems however you can run the library **on your PC** as well without any embedded hardware. The code written on PC can be simply copied when your are using an embedded system.
