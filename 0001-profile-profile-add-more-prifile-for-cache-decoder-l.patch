@@ -1,0 +1,580 @@
+From 0244a6dbe961f545948aaa8345f05aac2bcb4849 Mon Sep 17 00:00:00 2001
+From: xinbingnan <xinbingnan@xiaomi.com>
+Date: Mon, 18 Mar 2024 15:43:58 +0800
+Subject: [PATCH] profile(profile): add more prifile for cache/decoder/layout
+ modules
+
+Change-Id: I2c9eff23d29729514dd84fef48be8d851175cb7b
+---
+ src/core/lv_obj_pos.c                   | 106 ++++++++++++++++++++++--
+ src/draw/lv_image_decoder.c             |  22 ++++-
+ src/layouts/lv_layout.c                 |   5 ++
+ src/libs/freetype/lv_freetype_glyph.c   |  15 ++++
+ src/misc/cache/lv_cache.c               |  39 +++++++++
+ src/misc/cache/lv_cache_entry_private.h |   1 +
+ src/misc/lv_profiler_builtin.c          |   2 +-
+ 7 files changed, 182 insertions(+), 8 deletions(-)
+
+diff --git a/src/core/lv_obj_pos.c b/src/core/lv_obj_pos.c
+index d79af8b44..46a4c0afa 100644
+--- a/src/core/lv_obj_pos.c
++++ b/src/core/lv_obj_pos.c
+@@ -82,15 +82,29 @@ bool lv_obj_refr_size(lv_obj_t * obj)
+ {
+     LV_ASSERT_OBJ(obj, MY_CLASS);
+ 
++    LV_PROFILER_BEGIN;
++
+     /*If the width or height is set by a layout do not modify them*/
+-    if(obj->w_layout && obj->h_layout) return false;
++    if(obj->w_layout && obj->h_layout) {
++
++        LV_PROFILER_END;
++
++        return false;
++    }
+ 
+     lv_obj_t * parent = lv_obj_get_parent(obj);
+-    if(parent == NULL) return false;
++    if(parent == NULL) {
++
++        LV_PROFILER_END;
++
++        return false;
++    }
+ 
+     bool w_is_content = false;
+     bool w_is_pct = false;
+ 
++    LV_PROFILER_BEGIN_TAG("calc_width");
++
+     int32_t w;
+     if(obj->w_layout) {
+         w = lv_obj_get_width(obj);
+@@ -121,6 +135,10 @@ bool lv_obj_refr_size(lv_obj_t * obj)
+         w = lv_clamp_width(w, minw, maxw, parent_w);
+     }
+ 
++    LV_PROFILER_END_TAG("calc_width");
++
++    LV_PROFILER_BEGIN_TAG("calc_height");
++
+     int32_t h;
+     bool h_is_content = false;
+     bool h_is_pct = false;
+@@ -153,13 +171,24 @@ bool lv_obj_refr_size(lv_obj_t * obj)
+         h = lv_clamp_height(h, minh, maxh, parent_h);
+     }
+ 
++    LV_PROFILER_END_TAG("calc_height");
++
+     /*Do nothing if the size is not changed*/
+     /*It is very important else recursive resizing can occur without size change*/
+-    if(lv_obj_get_width(obj) == w && lv_obj_get_height(obj) == h) return false;
++    if(lv_obj_get_width(obj) == w && lv_obj_get_height(obj) == h) {
++
++        LV_PROFILER_END;
++
++        return false;
++    }
++
++    LV_PROFILER_BEGIN_TAG("invalidate obj");
+ 
+     /*Invalidate the original area*/
+     lv_obj_invalidate(obj);
+ 
++    LV_PROFILER_END_TAG("invalidate obj");
++
+     /*Save the original coordinates*/
+     lv_area_t ori;
+     lv_obj_get_coords(obj, &ori);
+@@ -168,11 +197,15 @@ bool lv_obj_refr_size(lv_obj_t * obj)
+     lv_area_t parent_fit_area;
+     lv_obj_get_content_coords(parent, &parent_fit_area);
+ 
++    LV_PROFILER_BEGIN_TAG("invalidate scrollbar");
++
+     /*If the object is already out of the parent and its position is changes
+      *surely the scrollbars also changes so invalidate them*/
+     bool on1 = _lv_area_is_in(&ori, &parent_fit_area, 0);
+     if(!on1) lv_obj_scrollbar_invalidate(parent);
+ 
++    LV_PROFILER_END_TAG("invalidate scrollbar");
++
+     /*Set the length and height
+      *Be sure the content is not scrolled in an invalid position on the new size*/
+     obj->coords.y2 = obj->coords.y1 + h - 1;
+@@ -183,24 +216,46 @@ bool lv_obj_refr_size(lv_obj_t * obj)
+         obj->coords.x2 = obj->coords.x1 + w - 1;
+     }
+ 
++    LV_PROFILER_BEGIN_TAG("event size changed");
++
+     /*Call the ancestor's event handler to the object with its new coordinates*/
+     lv_obj_send_event(obj, LV_EVENT_SIZE_CHANGED, &ori);
+ 
++    LV_PROFILER_END_TAG("event size changed");
++
++    LV_PROFILER_BEGIN_TAG("event child changed");
++
+     /*Call the ancestor's event handler to the parent too*/
+     lv_obj_send_event(parent, LV_EVENT_CHILD_CHANGED, obj);
+ 
++    LV_PROFILER_END_TAG("event child changed");
++
++    LV_PROFILER_BEGIN_TAG("invalidate new area");
++
+     /*Invalidate the new area*/
+     lv_obj_invalidate(obj);
+ 
++    LV_PROFILER_END_TAG("invalidate new area");
++
+     obj->readjust_scroll_after_layout = 1;
+ 
++    LV_PROFILER_BEGIN_TAG("invalidate scrollbar 2");
++
+     /*If the object was out of the parent invalidate the new scrollbar area too.
+      *If it wasn't out of the parent but out now, also invalidate the scrollbars*/
+     bool on2 = _lv_area_is_in(&obj->coords, &parent_fit_area, 0);
+     if(on1 || (!on1 && on2)) lv_obj_scrollbar_invalidate(parent);
+ 
++    LV_PROFILER_END_TAG("invalidate scrollbar 2");
++
++    LV_PROFILER_BEGIN_TAG("invalidate ext draw size");
++
+     lv_obj_refresh_ext_draw_size(obj);
+ 
++    LV_PROFILER_END_TAG("invalidate ext draw size");
++
++    LV_PROFILER_END;
++
+     return true;
+ }
+ 
+@@ -579,15 +634,25 @@ void lv_obj_get_content_coords(const lv_obj_t * obj, lv_area_t * area)
+ 
+ int32_t lv_obj_get_self_width(const lv_obj_t * obj)
+ {
++    LV_PROFILER_BEGIN;
++
+     lv_point_t p = {0, LV_COORD_MIN};
+     lv_obj_send_event((lv_obj_t *)obj, LV_EVENT_GET_SELF_SIZE, &p);
++
++    LV_PROFILER_END;
++
+     return p.x;
+ }
+ 
+ int32_t lv_obj_get_self_height(const lv_obj_t * obj)
+ {
++    LV_PROFILER_BEGIN;
++
+     lv_point_t p = {LV_COORD_MIN, 0};
+     lv_obj_send_event((lv_obj_t *)obj, LV_EVENT_GET_SELF_SIZE, &p);
++
++    LV_PROFILER_END;
++
+     return p.y;
+ }
+ 
+@@ -948,6 +1013,8 @@ int32_t lv_clamp_height(int32_t height, int32_t min_height, int32_t max_height,
+ 
+ static int32_t calc_content_width(lv_obj_t * obj)
+ {
++    LV_PROFILER_BEGIN;
++
+     int32_t scroll_x_tmp = lv_obj_get_scroll_x(obj);
+     if(obj->spec_attr) obj->spec_attr->scroll.x = 0;
+ 
+@@ -1037,12 +1104,22 @@ static int32_t calc_content_width(lv_obj_t * obj)
+ 
+     if(obj->spec_attr) obj->spec_attr->scroll.x = -scroll_x_tmp;
+ 
+-    if(child_res == LV_COORD_MIN) return self_w;
++    if(child_res == LV_COORD_MIN) {
++
++        LV_PROFILER_END;
++
++        return self_w;
++    }
++
++    LV_PROFILER_END;
++
+     return LV_MAX(child_res, self_w);
+ }
+ 
+ static int32_t calc_content_height(lv_obj_t * obj)
+ {
++    LV_PROFILER_BEGIN;
++
+     int32_t scroll_y_tmp = lv_obj_get_scroll_y(obj);
+     if(obj->spec_attr) obj->spec_attr->scroll.y = 0;
+ 
+@@ -1089,12 +1166,22 @@ static int32_t calc_content_height(lv_obj_t * obj)
+ 
+     if(obj->spec_attr) obj->spec_attr->scroll.y = -scroll_y_tmp;
+ 
+-    if(child_res == LV_COORD_MIN) return self_h;
++    if(child_res == LV_COORD_MIN) {
++
++        LV_PROFILER_END;
++
++        return self_h;
++    }
++
++    LV_PROFILER_END;
++
+     return LV_MAX(self_h, child_res + space_bottom);
+ }
+ 
+ static void layout_update_core(lv_obj_t * obj)
+ {
++    LV_PROFILER_BEGIN;
++
+     uint32_t i;
+     uint32_t child_cnt = lv_obj_get_child_count(obj);
+     for(i = 0; i < child_cnt; i++) {
+@@ -1104,18 +1191,27 @@ static void layout_update_core(lv_obj_t * obj)
+ 
+     if(obj->layout_inv) {
+         obj->layout_inv = 0;
++        LV_PROFILER_BEGIN_TAG("refr_size");
+         lv_obj_refr_size(obj);
++        LV_PROFILER_END_TAG("refr_size");
++
++        LV_PROFILER_BEGIN_TAG("refr_pos");
+         lv_obj_refr_pos(obj);
++        LV_PROFILER_END_TAG("refr_pos");
+ 
+         if(child_cnt > 0) {
+             _lv_layout_apply(obj);
+         }
+     }
+ 
++    LV_PROFILER_BEGIN_TAG("adjust_scroll");
+     if(obj->readjust_scroll_after_layout) {
+         obj->readjust_scroll_after_layout = 0;
+         lv_obj_readjust_scroll(obj, LV_ANIM_OFF);
+     }
++    LV_PROFILER_END_TAG("adjust_scroll");
++
++    LV_PROFILER_END;
+ }
+ 
+ static void transform_point(const lv_obj_t * obj, lv_point_t * p, bool inv)
+diff --git a/src/draw/lv_image_decoder.c b/src/draw/lv_image_decoder.c
+index cc11bb5ff..8d0e47792 100644
+--- a/src/draw/lv_image_decoder.c
++++ b/src/draw/lv_image_decoder.c
+@@ -299,16 +299,26 @@ lv_draw_buf_t * lv_image_decoder_post_process(lv_image_decoder_dsc_t * dsc, lv_d
+ 
+ static lv_image_decoder_t * image_decoder_get_info(const void * src, lv_image_header_t * header)
+ {
++    LV_PROFILER_BEGIN;
++
+     lv_memzero(header, sizeof(lv_image_header_t));
+ 
+-    if(src == NULL) return NULL;
++    if(src == NULL) {
++
++        LV_PROFILER_END;
++
++        return NULL;
++    }
+ 
+     lv_image_src_t src_type = lv_image_src_get_type(src);
+     /* miwear could set NULL data variable type of image */
+ #if 0
+     if(src_type == LV_IMAGE_SRC_VARIABLE) {
+         const lv_image_dsc_t * img_dsc = src;
+-        if(img_dsc->data == NULL) return NULL;
++        if(img_dsc->data == NULL) {
++            LV_PROFILER_END;
++            return NULL;
++        }
+     }
+ #else
+     LV_UNUSED(src_type);
+@@ -329,6 +339,9 @@ static lv_image_decoder_t * image_decoder_get_info(const void * src, lv_image_he
+             *header = cached_data->header;
+             decoder = cached_data->decoder;
+             lv_cache_release(img_header_cache_p, entry, NULL);
++
++            LV_PROFILER_END;
++
+             return decoder;
+         }
+     }
+@@ -357,6 +370,9 @@ static lv_image_decoder_t * image_decoder_get_info(const void * src, lv_image_he
+ 
+         if(entry == NULL) {
+             if(src_type == LV_IMAGE_SRC_FILE) lv_free((void *)search_key.src);
++
++            LV_PROFILER_END;
++
+             return NULL;
+         }
+ 
+@@ -364,6 +380,8 @@ static lv_image_decoder_t * image_decoder_get_info(const void * src, lv_image_he
+     }
+ #endif
+ 
++    LV_PROFILER_END;
++
+     return decoder;
+ }
+ 
+diff --git a/src/layouts/lv_layout.c b/src/layouts/lv_layout.c
+index a14c1219f..9497da76c 100644
+--- a/src/layouts/lv_layout.c
++++ b/src/layouts/lv_layout.c
+@@ -67,11 +67,16 @@ uint32_t lv_layout_register(lv_layout_update_cb_t cb, void * user_data)
+ 
+ void _lv_layout_apply(lv_obj_t * obj)
+ {
++    LV_PROFILER_BEGIN;
+     lv_layout_t layout_id = lv_obj_get_style_layout(obj, LV_PART_MAIN);
+     if(layout_id > 0 && layout_id <= layout_cnt) {
+         void  * user_data = layout_list_def[layout_id].user_data;
++
++        LV_PROFILER_BEGIN_TAG("layout_cb");
+         layout_list_def[layout_id].cb(obj, user_data);
++        LV_PROFILER_END_TAG("layout_cb");
+     }
++    LV_PROFILER_END;
+ }
+ 
+ /**********************
+diff --git a/src/libs/freetype/lv_freetype_glyph.c b/src/libs/freetype/lv_freetype_glyph.c
+index 949aa9cb1..ec42ebc29 100644
+--- a/src/libs/freetype/lv_freetype_glyph.c
++++ b/src/libs/freetype/lv_freetype_glyph.c
+@@ -79,6 +79,8 @@ static bool freetype_get_glyph_dsc_cb(const lv_font_t * font, lv_font_glyph_dsc_
+     LV_ASSERT_NULL(font);
+     LV_ASSERT_NULL(g_dsc);
+ 
++    LV_PROFILER_BEGIN;
++
+     if(unicode_letter < 0x20) {
+         g_dsc->adv_w  = 0;
+         g_dsc->box_h  = 0;
+@@ -102,6 +104,9 @@ static bool freetype_get_glyph_dsc_cb(const lv_font_t * font, lv_font_glyph_dsc_
+     lv_cache_entry_t * entry = lv_cache_acquire_or_create(glyph_cache, &search_key, dsc);
+     if(entry == NULL) {
+         LV_LOG_ERROR("glyph lookup failed for unicode = 0x%" LV_PRIx32, unicode_letter);
++
++        LV_PROFILER_END;
++
+         return false;
+     }
+     lv_freetype_glyph_cache_data_t * data = lv_cache_entry_get_data(entry);
+@@ -114,6 +119,9 @@ static bool freetype_get_glyph_dsc_cb(const lv_font_t * font, lv_font_glyph_dsc_
+     g_dsc->entry = NULL;
+ 
+     lv_cache_release(glyph_cache, entry, NULL);
++
++    LV_PROFILER_END;
++
+     return true;
+ }
+ 
+@@ -123,6 +131,8 @@ static bool freetype_get_glyph_dsc_cb(const lv_font_t * font, lv_font_glyph_dsc_
+ 
+ static bool freetype_glyph_create_cb(lv_freetype_glyph_cache_data_t * data, void * user_data)
+ {
++    LV_PROFILER_BEGIN;
++
+     lv_freetype_font_dsc_t * dsc = (lv_freetype_font_dsc_t *)user_data;
+ 
+     FT_Error error;
+@@ -137,6 +147,9 @@ static bool freetype_glyph_create_cb(lv_freetype_glyph_cache_data_t * data, void
+     error = FT_Load_Glyph(face, glyph_index,  FT_LOAD_COMPUTE_METRICS | FT_LOAD_NO_BITMAP);
+     if(error) {
+         FT_ERROR_MSG("FT_Load_Glyph", error);
++
++        LV_PROFILER_END;
++
+         return false;
+     }
+ 
+@@ -173,6 +186,8 @@ static bool freetype_glyph_create_cb(lv_freetype_glyph_cache_data_t * data, void
+     dsc_out->is_placeholder = glyph_index == 0;
+     dsc_out->glyph_index = glyph_index;
+ 
++    LV_PROFILER_END;
++
+     return true;
+ }
+ static void freetype_glyph_free_cb(lv_freetype_glyph_cache_data_t * data, void * user_data)
+diff --git a/src/misc/cache/lv_cache.c b/src/misc/cache/lv_cache.c
+index e22cd9e42..854c4a7bf 100644
+--- a/src/misc/cache/lv_cache.c
++++ b/src/misc/cache/lv_cache.c
+@@ -81,18 +81,25 @@ lv_cache_entry_t * lv_cache_acquire(lv_cache_t * cache, const void * key, void *
+     LV_ASSERT_NULL(cache);
+     LV_ASSERT_NULL(key);
+ 
++    LV_PROFILER_BEGIN;
++
+     lv_mutex_lock(&cache->lock);
+     lv_cache_entry_t * entry = cache->clz->get_cb(cache, key, user_data);
+     if(entry != NULL) {
+         lv_cache_entry_acquire_data(entry);
+     }
+     lv_mutex_unlock(&cache->lock);
++
++    LV_PROFILER_END;
++
+     return entry;
+ }
+ void lv_cache_release(lv_cache_t * cache, lv_cache_entry_t * entry, void * user_data)
+ {
+     LV_ASSERT_NULL(entry);
+ 
++    LV_PROFILER_BEGIN;
++
+     lv_mutex_lock(&cache->lock);
+     lv_cache_entry_release_data(entry, user_data);
+ 
+@@ -101,12 +108,16 @@ void lv_cache_release(lv_cache_t * cache, lv_cache_entry_t * entry, void * user_
+         lv_cache_entry_delete(entry);
+     }
+     lv_mutex_unlock(&cache->lock);
++
++    LV_PROFILER_END;
+ }
+ lv_cache_entry_t * lv_cache_add(lv_cache_t * cache, const void * key, void * user_data)
+ {
+     LV_ASSERT_NULL(cache);
+     LV_ASSERT_NULL(key);
+ 
++    LV_PROFILER_BEGIN;
++
+     lv_mutex_lock(&cache->lock);
+     lv_cache_entry_t * entry = cache_add_internal_no_lock(cache, key, user_data);
+     if(entry != NULL) {
+@@ -114,6 +125,8 @@ lv_cache_entry_t * lv_cache_add(lv_cache_t * cache, const void * key, void * use
+     }
+     lv_mutex_unlock(&cache->lock);
+ 
++    LV_PROFILER_END;
++
+     return entry;
+ }
+ lv_cache_entry_t * lv_cache_acquire_or_create(lv_cache_t * cache, const void * key, void * user_data)
+@@ -121,16 +134,24 @@ lv_cache_entry_t * lv_cache_acquire_or_create(lv_cache_t * cache, const void * k
+     LV_ASSERT_NULL(cache);
+     LV_ASSERT_NULL(key);
+ 
++    LV_PROFILER_BEGIN;
++
+     lv_mutex_lock(&cache->lock);
+     lv_cache_entry_t * entry = cache->clz->get_cb(cache, key, user_data);
+     if(entry != NULL) {
+         lv_cache_entry_acquire_data(entry);
+         lv_mutex_unlock(&cache->lock);
++
++        LV_PROFILER_END;
++
+         return entry;
+     }
+     entry = cache_add_internal_no_lock(cache, key, user_data);
+     if(entry == NULL) {
+         lv_mutex_unlock(&cache->lock);
++
++        LV_PROFILER_END;
++
+         return NULL;
+     }
+     bool create_res = cache->ops.create_cb(lv_cache_entry_get_data(entry), user_data);
+@@ -143,44 +164,62 @@ lv_cache_entry_t * lv_cache_acquire_or_create(lv_cache_t * cache, const void * k
+         lv_cache_entry_acquire_data(entry);
+     }
+     lv_mutex_unlock(&cache->lock);
++
++    LV_PROFILER_END;
++
+     return entry;
+ }
+ void lv_cache_reserve(lv_cache_t * cache, uint32_t reserved_size, void * user_data)
+ {
+     LV_ASSERT_NULL(cache);
+ 
++    LV_PROFILER_BEGIN;
++
+     for(lv_cache_reserve_cond_res_t reserve_cond_res = cache->clz->reserve_cond_cb(cache, NULL, reserved_size, user_data);
+         reserve_cond_res == LV_CACHE_RESERVE_COND_NEED_VICTIM;
+         reserve_cond_res = cache->clz->reserve_cond_cb(cache, NULL, reserved_size, user_data))
+         cache_evict_one_internal_no_lock(cache, user_data);
+ 
++    LV_PROFILER_END;
+ }
+ void lv_cache_drop(lv_cache_t * cache, const void * key, void * user_data)
+ {
+     LV_ASSERT_NULL(cache);
+     LV_ASSERT_NULL(key);
+ 
++    LV_PROFILER_BEGIN;
++
+     lv_mutex_lock(&cache->lock);
+     cache_drop_internal_no_lock(cache, key, user_data);
+     lv_mutex_unlock(&cache->lock);
++
++    LV_PROFILER_END;
+ }
+ bool lv_cache_evict_one(lv_cache_t * cache, void * user_data)
+ {
+     LV_ASSERT_NULL(cache);
+ 
++    LV_PROFILER_BEGIN;
++
+     lv_mutex_lock(&cache->lock);
+     bool res = cache_evict_one_internal_no_lock(cache, user_data);
+     lv_mutex_unlock(&cache->lock);
+ 
++    LV_PROFILER_END;
++
+     return res;
+ }
+ void lv_cache_drop_all(lv_cache_t * cache, void * user_data)
+ {
+     LV_ASSERT_NULL(cache);
+ 
++    LV_PROFILER_BEGIN;
++
+     lv_mutex_lock(&cache->lock);
+     cache->clz->drop_all_cb(cache, user_data);
+     lv_mutex_unlock(&cache->lock);
++
++    LV_PROFILER_END;
+ }
+ 
+ void lv_cache_set_max_size(lv_cache_t * cache, size_t max_size, void * user_data)
+diff --git a/src/misc/cache/lv_cache_entry_private.h b/src/misc/cache/lv_cache_entry_private.h
+index 227585e1e..39f765566 100644
+--- a/src/misc/cache/lv_cache_entry_private.h
++++ b/src/misc/cache/lv_cache_entry_private.h
+@@ -17,6 +17,7 @@ extern "C" {
+ #include <stdbool.h>
+ #include <stdlib.h>
+ #include "../../osal/lv_os.h"
++#include "../lv_profiler.h"
+ /*********************
+  *      DEFINES
+  *********************/
+diff --git a/src/misc/lv_profiler_builtin.c b/src/misc/lv_profiler_builtin.c
+index ca6d2f2cc..19eb5f57c 100644
+--- a/src/misc/lv_profiler_builtin.c
++++ b/src/misc/lv_profiler_builtin.c
+@@ -93,7 +93,7 @@ void lv_profiler_builtin_init(const lv_profiler_builtin_config_t * config)
+         profiler_ctx.config.flush_cb("#\n");
+     }
+ 
+-    lv_profiler_builtin_set_enable(true);
++    lv_profiler_builtin_set_enable(false);
+ 
+     LV_LOG_INFO("init OK, item_num = %d", (int)num);
+ }
+-- 
+2.43.2
+

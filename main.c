@@ -14,6 +14,42 @@
 #include "lvgl/examples/lv_examples.h"
 #include "lvgl/demos/lv_demos.h"
 
+
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <time.h>
+
+static uint32_t my_get_tick_us_cb(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+}
+
+static int my_get_tid_cb(void)
+{
+    return (int)syscall(SYS_gettid);
+}
+
+static int my_get_cpu_cb(void)
+{
+    int cpu_id = 0;
+//    syscall(SYS_getcpu, &cpu_id, NULL);
+    return cpu_id;
+}
+
+void my_profiler_init(void)
+{
+    lv_profiler_builtin_config_t config;
+    lv_profiler_builtin_config_init(&config);
+    config.tick_per_sec = 1000000; /* One second is equal to 1000000 microseconds */
+    config.tick_get_cb = my_get_tick_us_cb;
+    config.tid_get_cb = my_get_tid_cb;
+    config.cpu_get_cb = my_get_cpu_cb;
+    lv_profiler_builtin_init(&config);
+}
+
+
 /*********************
  *      DEFINES
  *********************/
@@ -91,6 +127,8 @@ int main(int argc, char **argv) {
     /*Initialize LVGL*/
     lv_init();
 
+    my_profiler_init();
+
     /*Initialize the display, and the input devices*/
     hal_init(480, 480);
 
@@ -139,6 +177,16 @@ static lv_display_t *hal_init(int32_t w, int32_t h) {
     lv_indev_set_group(keyboard, lv_group_get_default());
 
     return disp;
+}
+
+static lv_obj_t * create_obj_wrapper(lv_obj_t * parent, lv_obj_t * child) {
+    lv_obj_t * wrapper = lv_obj_create(parent);
+    lv_obj_remove_style_all(wrapper);
+    lv_obj_set_size(wrapper, LV_PCT(100),LV_PCT(100));
+
+    lv_obj_set_parent(child, wrapper);
+
+    return wrapper;
 }
 
 static lv_obj_t *settings_header_create(lv_obj_t *settings_page) {
@@ -224,4 +272,14 @@ static void settings_page_create(void) {
 
         lv_obj_set_style_margin_ver(item, 10, LV_PART_MAIN);
     }
+
+
+    // create 5 wrappers
+    lv_obj_t * wrapper1 = create_obj_wrapper(lv_screen_active(), page);
+    lv_obj_t * wrapper2 = create_obj_wrapper(lv_screen_active(), wrapper1);
+    lv_obj_t * wrapper3 = create_obj_wrapper(lv_screen_active(), wrapper2);
+    lv_obj_t * wrapper4 = create_obj_wrapper(lv_screen_active(), wrapper3);
+    lv_obj_t * wrapper5 = create_obj_wrapper(lv_screen_active(), wrapper4);
+
+    lv_obj_update_layout(wrapper5);
 }
