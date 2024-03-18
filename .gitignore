@@ -11,3 +11,4 @@ bin/
 cmake/
 .idea
 cmake-build*
+.DS_Store

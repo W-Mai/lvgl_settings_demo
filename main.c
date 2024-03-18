@@ -52,7 +52,9 @@ static const char *const settings_titles[] = {
         "Music",
 };
 
-const uint32_t settings_items_count = sizeof(settings_titles) / sizeof(settings_titles[0]);
+const static uint32_t settings_items_count = sizeof(settings_titles) / sizeof(settings_titles[0]);
+
+static lv_font_t *fonts[2];
 
 /**********************
  *      MACROS
@@ -149,7 +151,7 @@ static lv_obj_t *settings_header_create(lv_obj_t *settings_page) {
     lv_obj_t *header = lv_label_create(header_toast);
     lv_label_set_text(header, "Settings");
     lv_obj_set_style_text_color(header, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(header, &lv_font_montserrat_38, LV_PART_MAIN);
+    lv_obj_set_style_text_font(header, fonts[1], LV_PART_MAIN);
     return header;
 }
 
@@ -179,8 +181,7 @@ static lv_obj_t *settings_item_create(lv_obj_t *settings_page, const char *title
     lv_obj_t *label = lv_label_create(item);
     lv_label_set_text(label, title);
     lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_22, LV_PART_MAIN);
-    lv_obj_set_style_margin_left(label, 20, LV_PART_MAIN);
+    lv_obj_set_style_text_font(label, fonts[0], LV_PART_MAIN);
     lv_obj_set_flex_grow(label, 1);
 
     lv_obj_t *forward_icon = lv_image_create(item);
@@ -193,6 +194,12 @@ static lv_obj_t *settings_item_create(lv_obj_t *settings_page, const char *title
 }
 
 static void settings_page_create(void) {
+
+    fonts[0] = lv_freetype_font_create("../res/fonts/PixeloidMono.ttf", LV_FREETYPE_FONT_RENDER_MODE_BITMAP, 22,
+                                       LV_FREETYPE_FONT_STYLE_NORMAL);
+    fonts[1] = lv_freetype_font_create("../res/fonts/PixeloidMono.ttf", LV_FREETYPE_FONT_RENDER_MODE_BITMAP, 38,
+                                       LV_FREETYPE_FONT_STYLE_NORMAL);
+
     lv_obj_t *page = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(page);
 

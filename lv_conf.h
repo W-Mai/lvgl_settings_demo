@@ -662,7 +662,7 @@
 
 /*FreeType library*/
 #ifndef LV_USE_FREETYPE
-#define LV_USE_FREETYPE 0
+#define LV_USE_FREETYPE 1
 #endif
 
 #if LV_USE_FREETYPE
