@@ -6,6 +6,7 @@ option(LV_USE_LIBPNG "Use libpng to decode PNG" OFF)
 option(LV_USE_LIBJPEG_TURBO "Use libjpeg turbo to decode JPEG" OFF)
 option(LV_USE_FFMPEG "Use libffmpeg to display video using lv_ffmpeg" OFF)
 option(LV_USE_FREETYPE "Use freetype lib" OFF)
+option(CREATE_FILE_WRAPPERS "Create file wrappers for profile" OFF)
 
 set(CMAKE_C_STANDARD 99)#C99 # lvgl officially support C99 and above
 set(CMAKE_CXX_STANDARD 17)#C17
@@ -63,6 +64,10 @@ if(LV_USE_FREETYPE)
     target_link_libraries(main ${FREETYPE_LIBRARIES})
     target_include_directories(lvgl PUBLIC ${FREETYPE_INCLUDE_DIRS})
 endif(LV_USE_FREETYPE)
+
+if(CREATE_FILE_WRAPPERS)
+    add_definitions(-DCREATE_FILE_WRAPPERS=1)
+endif ()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_options(lvgl PRIVATE
