@@ -19,27 +19,27 @@
 #include <sys/types.h>
 #include <time.h>
 
-static uint32_t my_get_tick_us_cb(void)
-{
+void lv_profiler_builtin_set_enable(bool enable);
+
+void lv_profiler_builtin_flush(void);
+
+static uint32_t my_get_tick_us_cb(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 
-static int my_get_tid_cb(void)
-{
-    return (int)syscall(SYS_gettid);
+static int my_get_tid_cb(void) {
+    return (int) syscall(SYS_gettid);
 }
 
-static int my_get_cpu_cb(void)
-{
+static int my_get_cpu_cb(void) {
     int cpu_id = 0;
 //    syscall(SYS_getcpu, &cpu_id, NULL);
     return cpu_id;
 }
 
-void my_profiler_init(void)
-{
+void my_profiler_init(void) {
     lv_profiler_builtin_config_t config;
     lv_profiler_builtin_config_init(&config);
     config.tick_per_sec = 1000000; /* One second is equal to 1000000 microseconds */
@@ -179,10 +179,10 @@ static lv_display_t *hal_init(int32_t w, int32_t h) {
     return disp;
 }
 
-static lv_obj_t * create_obj_wrapper(lv_obj_t * parent, lv_obj_t * child) {
-    lv_obj_t * wrapper = lv_obj_create(parent);
+static lv_obj_t *create_obj_wrapper(lv_obj_t *parent, lv_obj_t *child) {
+    lv_obj_t *wrapper = lv_obj_create(parent);
     lv_obj_remove_style_all(wrapper);
-    lv_obj_set_size(wrapper, LV_PCT(100),LV_PCT(100));
+    lv_obj_set_size(wrapper, LV_PCT(100), LV_PCT(100));
 
     lv_obj_set_parent(child, wrapper);
 
@@ -248,6 +248,8 @@ static void settings_page_create(void) {
     fonts[1] = lv_freetype_font_create("../res/fonts/PixeloidMono.ttf", LV_FREETYPE_FONT_RENDER_MODE_BITMAP, 38,
                                        LV_FREETYPE_FONT_STYLE_NORMAL);
 
+    lv_profiler_builtin_set_enable(true);
+
     lv_obj_t *page = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(page);
 
@@ -274,12 +276,26 @@ static void settings_page_create(void) {
     }
 
 
+#if CREATE_FILE_WRAPPERS
     // create 5 wrappers
-    lv_obj_t * wrapper1 = create_obj_wrapper(lv_screen_active(), page);
-    lv_obj_t * wrapper2 = create_obj_wrapper(lv_screen_active(), wrapper1);
-    lv_obj_t * wrapper3 = create_obj_wrapper(lv_screen_active(), wrapper2);
-    lv_obj_t * wrapper4 = create_obj_wrapper(lv_screen_active(), wrapper3);
-    lv_obj_t * wrapper5 = create_obj_wrapper(lv_screen_active(), wrapper4);
+    create_obj_wrapper(lv_screen_active(),
+                       create_obj_wrapper(lv_screen_active(),
+                                          create_obj_wrapper(lv_screen_active(),
+                                                             create_obj_wrapper(lv_screen_active(),
+                                                                                create_obj_wrapper(lv_screen_active(),
+                                                                                                   page
+                                                                                )
+                                                             )
+                                          )
+                       )
+    );
+#endif
 
-    lv_obj_update_layout(wrapper5);
+    lv_profiler_builtin_set_enable(false);
+    lv_profiler_builtin_flush();
+
+    lv_profiler_builtin_set_enable(true);
+    lv_obj_update_layout(lv_screen_active());
+    lv_profiler_builtin_set_enable(false);
+    lv_profiler_builtin_flush();
 }
