@@ -34,20 +34,22 @@ static void settings_page_create(void);
  **********************/
 
 static const char *const settings_titles[] = {
-        "Wallpaper",
-        "General",
+        "WLAN",
         "Bluetooth",
-        "Cellular",
-        "Display",
-        "Sound",
-        "Vibration",
-        "Security",
-        "Messages",
+        "PersonalHotspot",
+        "Notifications",
+        "DoNotDisturb",
+        "General",
+        "DisplayBrightness",
         "Accessibility",
-        "Focus",
-        "Power",
-        "System",
-        "About",
+        "Wallpaper",
+        "PasswordsAccounts",
+        "Battery",
+        "Privacy",
+        "Camera",
+        "Keyboards",
+        "Location",
+        "Music",
 };
 
 const uint32_t settings_items_count = sizeof(settings_titles) / sizeof(settings_titles[0]);
@@ -137,12 +139,57 @@ static lv_display_t *hal_init(int32_t w, int32_t h) {
     return disp;
 }
 
-static void settings_item_create(lv_obj_t *settings_page, const char *title, const uint8_t *icon) {
+static lv_obj_t *settings_header_create(lv_obj_t *settings_page) {
+    lv_obj_t *header_toast = lv_obj_create(settings_page);
+    lv_obj_remove_style_all(header_toast);
+    lv_obj_set_size(header_toast, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(header_toast, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(header_toast, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t *header = lv_label_create(header_toast);
+    lv_label_set_text(header, "Settings");
+    lv_obj_set_style_text_color(header, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(header, &lv_font_montserrat_38, LV_PART_MAIN);
+    return header;
+}
+
+static lv_obj_t *settings_item_create(lv_obj_t *settings_page, const char *title, const uint8_t *icon_path) {
     lv_obj_t *item = lv_obj_create(settings_page);
 
     lv_obj_remove_style_all(item);
 
-    lv_obj_set_size(item, LV_PCT(80), 30);
+    lv_obj_set_size(item, LV_PCT(80), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(item, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(item, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_color(item, lv_color_hex3(0x666), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(item, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_radius(item, 40, LV_PART_MAIN);
+
+    lv_obj_t *icon = lv_image_create(item);
+    lv_image_set_src(icon, icon_path);
+    lv_obj_set_size(icon, 64, 64);
+    lv_obj_set_style_margin_all(icon, 16, LV_PART_MAIN);
+    lv_image_set_align(icon, LV_IMAGE_ALIGN_STRETCH);
+    lv_obj_set_style_border_width(icon, 2, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(icon, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(icon, lv_color_hex3(0xaaa), LV_PART_MAIN);
+    lv_obj_set_style_radius(icon, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_border_post(icon, true, LV_PART_MAIN);
+
+    lv_obj_t *label = lv_label_create(item);
+    lv_label_set_text(label, title);
+    lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_22, LV_PART_MAIN);
+    lv_obj_set_style_margin_left(label, 20, LV_PART_MAIN);
+    lv_obj_set_flex_grow(label, 1);
+
+    lv_obj_t *forward_icon = lv_image_create(item);
+    lv_image_set_src(forward_icon, "/res/Forward.png");
+    lv_obj_set_size(forward_icon, 32, 32);
+    lv_obj_set_style_margin_right(forward_icon, 40, LV_PART_MAIN);
+    lv_image_set_align(forward_icon, LV_IMAGE_ALIGN_STRETCH);
+
+    return item;
 }
 
 static void settings_page_create(void) {
@@ -154,9 +201,20 @@ static void settings_page_create(void) {
     lv_obj_set_style_bg_opa(page, LV_OPA_COVER, LV_PART_MAIN);
 
     lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(page, LV_FLEX_ALIGN_SPACE_AROUND, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(page, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
+    // create header
+    lv_obj_t *header_toast = settings_header_create(page);
+    lv_obj_set_style_margin_top(header_toast, 22, LV_PART_MAIN);
+    lv_obj_set_style_margin_bottom(header_toast, 22, LV_PART_MAIN);
+
+    // create items
     for (uint32_t i = 0; i < settings_items_count; i++) {
-        settings_item_create(page, settings_titles[i], NULL);
+        const char *title = settings_titles[i];
+        char path[100];
+        lv_snprintf(path, sizeof(path), "/res/%s.png", title);
+        lv_obj_t *item = settings_item_create(page, title, (const uint8_t *) path);
+
+        lv_obj_set_style_margin_ver(item, 10, LV_PART_MAIN);
     }
 }
